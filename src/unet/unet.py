@@ -360,7 +360,10 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     dt = tf.data.Dataset.from_generator(train_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
     dv = tf.data.Dataset.from_generator(val_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
 
-    return dt, dv, train_dataset, val_dataset
+    return dt, dv, train_dataset, val_dataset, n_classes
+
+
+
 
 
 def get_nyu_dataset(dataset_file_path):
@@ -406,6 +409,8 @@ def get_nyu_dataset(dataset_file_path):
 
 
 
+
+
 if __name__ == "__main__":
 
     sample_input_shape = (480,640,4)
@@ -416,21 +421,34 @@ if __name__ == "__main__":
     nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
 
 
+    if False:
+        
+        # Convert to hd5 weights
+        tf_weigths = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc'
+        output_h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
+        
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=24, padding='same')
+        model.load_weights(tf_weigths)
+        model.save_weights(output_h5_weights)
+        exit(0)
   
 
     if True:
-        output_model_path = 'unet_depth_4_sibdataset_220419'
-        #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
-        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220419'
+        dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
+
         #train_dataset.visualize_data_set()
+        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
+        train_dataset.visualize_data_set()
+        exit(0)
 
-
-        #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sib_dataset_220414/checkpoints/ckpt-min_train_loss'
+        load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
         model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
         model.summary()
-        finalize_model(model, optimizer='adam')
-        load_weights = ''
-        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights=load_weights)
+        optimizer = Adam(learning_rate=0.1)
+        finalize_model(model, optimizer=optimizer)
+        model.load_weights(load_weights, by_name=True, skip_mismatch=True)
+        fit_model(model, output_model_path, dt, dv, batch_size=2, nbr_epochs=100, load_weights='')
         exit(0)
 
     if True:
