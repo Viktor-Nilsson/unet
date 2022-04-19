@@ -2,13 +2,31 @@ from typing import Optional, Union, Callable, List
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import Model, Input
+from tensorflow.keras.models import Model#, Input
+from tensorflow.keras.layers import Input
 from tensorflow.keras import layers
 from tensorflow.keras import losses
 from tensorflow.keras.initializers import TruncatedNormal
 from tensorflow.keras.optimizers import Adam
 
-import unet.metrics
+import metrics as unet_metrics
+
+
+import sys
+import os
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(dir_path, '..', '..', '..', '..' )) # dev/root folder
+sys.path.append(os.path.join(dir_path, '..', '..', '..', '..', 'sib_proto', '3D', 'rgbd_semantic_segmentation'))
+
+import sib_rgbd_dataset
+import nyu_dataset
+
+
+physical_devices = tf.config.list_physical_devices('GPU') 
+print(f'physical devices: {physical_devices}')
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 
 
 class ConvBlock(layers.Layer):
@@ -21,6 +39,7 @@ class ConvBlock(layers.Layer):
         self.dropout_rate=dropout_rate
         self.padding=padding
         self.activation=activation
+        self.trainable = True
 
         filters = _get_filter_count(layer_idx, filters_root)
         self.conv2d_1 = layers.Conv2D(filters=filters,
@@ -28,6 +47,8 @@ class ConvBlock(layers.Layer):
                                       kernel_initializer=_get_kernel_initializer(filters, kernel_size),
                                       strides=1,
                                       padding=padding)
+
+        self.batch_norm_1 = layers.BatchNormalization() # vn add
         self.dropout_1 = layers.Dropout(rate=dropout_rate)
         self.activation_1 = layers.Activation(activation)
 
@@ -36,20 +57,23 @@ class ConvBlock(layers.Layer):
                                       kernel_initializer=_get_kernel_initializer(filters, kernel_size),
                                       strides=1,
                                       padding=padding)
+        self.batch_norm_2 = layers.BatchNormalization() # vn add
         self.dropout_2 = layers.Dropout(rate=dropout_rate)
+
         self.activation_2 = layers.Activation(activation)
 
     def call(self, inputs, training=None, **kwargs):
         x = inputs
         x = self.conv2d_1(x)
+        x = self.batch_norm_1(x) # vn add
 
-        if training:
-            x = self.dropout_1(x)
+        #if training:
+            #x = self.dropout_1(x)
         x = self.activation_1(x)
         x = self.conv2d_2(x)
-
-        if training:
-            x = self.dropout_2(x)
+        x = self.batch_norm_2(x) # vn add
+        #if training:
+        #    x = self.dropout_2(x)
 
         x = self.activation_2(x)
         return x
@@ -75,6 +99,7 @@ class UpconvBlock(layers.Layer):
         self.pool_size=pool_size
         self.padding=padding
         self.activation=activation
+        self.trainable = True
 
         filters = _get_filter_count(layer_idx + 1, filters_root)
         self.upconv = layers.Conv2DTranspose(filters // 2,
@@ -126,7 +151,7 @@ def build_model(nx: Optional[int] = None,
                 filters_root: int = 64,
                 kernel_size: int = 3,
                 pool_size: int = 2,
-                dropout_rate: int = 0.5,
+                dropout_rate: int = 0.0, #0.5,
                 padding:str="valid",
                 activation:Union[str, Callable]="relu") -> Model:
     """
@@ -147,7 +172,7 @@ def build_model(nx: Optional[int] = None,
     :return: A TF Keras model
     """
 
-    inputs = Input(shape=(nx, ny, channels), name="inputs")
+    inputs = Input(shape=(ny, nx, channels), name="inputs")
 
     x = inputs
     contracting_layers = {}
@@ -221,21 +246,206 @@ def finalize_model(model: Model,
     if optimizer is None:
         optimizer = Adam(**opt_kwargs)
 
-    if metrics is None:
-        metrics = ['categorical_crossentropy',
-                   'categorical_accuracy',
-                   ]
+    # if metrics is None:
+    #     metrics = ['categorical_crossentropy',
+    #                'categorical_accuracy',
+    #                ]
 
-    if mean_iou:
-        metrics += [unet.metrics.mean_iou]
+    metrics=["mae", "acc"]
 
-    if dice_coefficient:
-        metrics += [unet.metrics.dice_coefficient]
+    # if mean_iou:
+    #     metrics += [unet_metrics.mean_iou]
 
-    if auc:
-        metrics += [tf.keras.metrics.AUC()]
+    # if dice_coefficient:
+    #     metrics += [unet_metrics.dice_coefficient]
 
+    # if auc:
+    #     metrics += [tf.keras.metrics.AUC()]
+
+    model.trainable = True
     model.compile(loss=loss,
                   optimizer=optimizer,
                   metrics=metrics,
                   )
+
+
+
+
+def fit_model(model, output_model_path, training_dataset, validation_dataset, batch_size=2, nbr_epochs=100, load_weights=''):
+
+
+    if not os.path.exists(output_model_path):
+        os.makedirs(output_model_path)
+
+    checkpoints_dir = os.path.join(output_model_path, 'checkpoints')
+    if not os.path.exists(checkpoints_dir):
+        os.makedirs(checkpoints_dir)
+
+    checkpoint_max_val_acc_filepath = os.path.join(checkpoints_dir, 'ckpt-max_val_acc')
+    checkpoint_min_train_loss_filepath = os.path.join(checkpoints_dir, 'ckpt-min_train_loss')
+
+    # Setup model checkpoint saving
+    model_checkpoint_callback_max_val_acc = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_max_val_acc_filepath,
+        save_weights_only=True,
+        monitor='val_acc',
+        mode='max',
+        save_best_only=True)
+    
+    model_checkpoint_callback_min_train_loss = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_min_train_loss_filepath,
+        save_weights_only=True,
+        monitor='loss',
+        mode='min',
+        save_best_only=True)
+
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir='logs',
+        histogram_freq=0,
+        write_graph=True,
+        write_images=True,
+        write_steps_per_second=False,
+        update_freq='epoch',
+        profile_batch=0,
+        embeddings_freq=0,
+        embeddings_metadata=None)
+
+    if load_weights != '':
+        print(f'loading weights: {load_weights}')
+        #model.load_weights(load_weights, by_name=True, skip_mismatch=True) # Weights must be in h5/keras format to load by_name and skip_mismatch ( If tf weights, simply load a model and save as .h5 and re-run)
+        model.load_weights(load_weights)
+
+    model.fit(training_dataset, epochs=nbr_epochs, verbose=2, batch_size=batch_size, validation_data=validation_dataset, callbacks=[model_checkpoint_callback_max_val_acc, model_checkpoint_callback_min_train_loss, tensorboard_callback])
+
+    model.save_weights(os.path.join(output_model_path, 'unet_sib_dataset_done_weights'))
+    print(f'saving model')
+    model.save(os.path.join(output_model_path, 'unet_sib_dataset_done.h5'))
+
+
+def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
+    
+    include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1},
+                                        {'class_name': 'contents', 'softmax_index': 2}]
+
+    n_classes = len(include_classes_and_softmax_index)
+    
+    train_dataset = sib_rgbd_dataset.SiBRGBDDataset(train_base_dir)
+    train_dataset.load_dataset_info()    
+    depth_mean, depth_std, rgb_mean, rgb_std = train_dataset.calculate_dataset_mean_std()
+
+
+    # Set means to 0 to get positive numbers instead of zero center ( Try fix unet doesnt learn....)
+    depth_mean = 0
+    depth_std = 1.0
+    rgb_mean[0] = 0
+    rgb_mean[1] = 0
+    rgb_mean[2] = 0
+    rgb_std[0] = 1.0
+    rgb_std[1] = 1.0
+    rgb_std[2] = 1.0
+
+    train_dataset.set_depth_normalize_mean_std_params(depth_mean, depth_std)
+    train_dataset.set_rgb_normalize_mean_std_params(rgb_mean, rgb_std)
+    train_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index)
+    
+
+    val_dataset = sib_rgbd_dataset.SiBRGBDDataset(validation_base_dir)
+    val_dataset.load_dataset_info()
+    val_dataset.set_depth_normalize_mean_std_params(depth_mean, depth_std)
+    val_dataset.set_rgb_normalize_mean_std_params(rgb_mean, rgb_std)
+    val_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index)
+    
+
+    tf_output_shape = tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], n_classes])
+    dt = tf.data.Dataset.from_generator(train_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
+    dv = tf.data.Dataset.from_generator(val_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
+
+    return dt, dv, train_dataset, val_dataset
+
+
+def get_nyu_dataset(dataset_file_path):
+
+    # composite_include_classes = [['wall', 'blinds', 'wall decoration', 'wall divider', 'whiteboard'], # TODO reduce this class since it becomes to heavy 
+    #     ['floor', 'floor mat', 'rug'],
+    #     'ceiling']
+
+
+    input_classes = ['desk', 'cup', 'bookshelf', 'clothes', 'shelves', 'blinds', 'books', 'book', 'sofa', 'bed', 'counter',
+    'bag', 'lamp', 'box', 'paper', 'ceiling', 'bottle', 'pillow', 'door', 'window', 'table', 'chair', 'cabinet', 'picture']
+
+
+    sample_input_shape = (480,640,4)
+    n_classes = len(input_classes)
+    flatten_outputs = False
+    train_dataset = nyu_dataset.NyuDepthv2Dataset(dataset_file_path, 
+                                sample_input_shape = sample_input_shape,
+                                train_split = 0.9, 
+                                split='train',
+                                normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MAX_0_255, 
+                                flatten_outputs=flatten_outputs,
+                                shuffle=True)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
+
+    train_dataset.set_include_classes(input_classes)
+    #train_dataset.set_use_rgb_pixel_augmentation()
+
+    validation_dataset = nyu_dataset.NyuDepthv2Dataset(dataset_file_path, 
+                            sample_input_shape = sample_input_shape,
+                            train_split = 0.9, 
+                            split='validation',
+                            normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MAX_0_255, 
+                            flatten_outputs=flatten_outputs,
+                            shuffle=False)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
+
+    validation_dataset.set_include_classes(input_classes)
+
+    tf_output_shape = tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], n_classes])
+    dt = tf.data.Dataset.from_generator(train_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
+    dv = tf.data.Dataset.from_generator(validation_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
+
+    return dt, dv, train_dataset, validation_dataset, n_classes
+
+
+
+if __name__ == "__main__":
+
+    sample_input_shape = (480,640,4)
+    validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
+    train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
+    output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419'
+
+    nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
+
+
+  
+
+    if True:
+        output_model_path = 'unet_depth_4_sibdataset_220419'
+        #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
+        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
+        #train_dataset.visualize_data_set()
+
+
+        #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sib_dataset_220414/checkpoints/ckpt-min_train_loss'
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
+        model.summary()
+        finalize_model(model, optimizer='adam')
+        load_weights = ''
+        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights=load_weights)
+        exit(0)
+
+    if True:
+        import rgbd_sem_seg_dev_app_main
+        input_image_folder = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
+        weights_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sib_dataset_220414/unet_sib_dataset_done_weights'
+        app = rgbd_sem_seg_dev_app_main.RGBDSegApp()
+        model.load_weights(weights_path)
+        app.model = model
+        app.classes = ['container', 'contents']
+        app.flat_output = False
+        app.process_single_frames(input_image_folder, model)
+
+    
+
+
+
+    pass
