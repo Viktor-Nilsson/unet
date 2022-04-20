@@ -450,7 +450,7 @@ if __name__ == "__main__":
         
 
         #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
-        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
         model.summary()
         #set_finetune_only(model)
 
