@@ -200,13 +200,13 @@ def build_model(nx: Optional[int] = None,
         x = CropConcatBlock()(x, contracting_layers[layer_idx])
         x = ConvBlock(layer_idx, **conv_params)(x)
 
-    x = layers.Conv2D(filters=num_classes,
+    x = layers.Conv2D(filters=num_classes, # Set name on this layer - finetuning
                       kernel_size=(1, 1),
                       kernel_initializer=_get_kernel_initializer(filters_root, kernel_size),
                       strides=1,
                       padding=padding)(x)
 
-    x = layers.Activation(activation)(x)
+    x = layers.Activation(activation)(x) # Set name on this layer - finetuning
     outputs = layers.Activation("softmax", name="outputs")(x)
     model = Model(inputs, outputs, name="unet")
 
@@ -363,7 +363,15 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     return dt, dv, train_dataset, val_dataset, n_classes
 
 
+def set_finetune_only(model):
 
+    for layer in model.layers:
+        if layer.name in ['conv2d_14', 'activation_17', 'outputs']:
+            layer.trainable = True
+        else:
+            layer.trainable = False
+
+        print(f'Name: {layer.name}, {layer}')    
 
 
 def get_nyu_dataset(dataset_file_path):
@@ -414,41 +422,42 @@ def get_nyu_dataset(dataset_file_path):
 if __name__ == "__main__":
 
     sample_input_shape = (480,640,4)
-    validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
+    validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/validation/vn_office'
     train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
-    output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419'
+    output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
 
     nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
+    nyu_path = 'C:\\datasets\\SOURCE_DATASETS\\rgbd\\nyu_depth_v2_labeled.mat'
 
+    tf_weigths = 'C:\\ml\\rgbd_unet\\unet_depth_4_nyu_24_classes_20420\\ckpt-max_val_acc_epoch_306'
+    h5_weights = tf_weigths + '.h5'
 
     if False:
         
-        # Convert to hd5 weights
-        tf_weigths = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc'
-        output_h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
-        
+        # Convert tf weights to hd5 weights        
         model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=24, padding='same')
         model.load_weights(tf_weigths)
-        model.save_weights(output_h5_weights)
-        exit(0)
-  
+        model.save_weights(h5_weights)
 
     if True:
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220419'
+        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
+        #output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
         dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
 
         #train_dataset.visualize_data_set()
-        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
-        train_dataset.visualize_data_set()
-        exit(0)
+        #dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
+        #train_dataset.visualize_data_set()
+        
 
-        load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
+        #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
         model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
         model.summary()
-        optimizer = Adam(learning_rate=0.1)
+        set_finetune_only(model)
+
+        optimizer = Adam(learning_rate=0.001)
         finalize_model(model, optimizer=optimizer)
-        model.load_weights(load_weights, by_name=True, skip_mismatch=True)
-        fit_model(model, output_model_path, dt, dv, batch_size=2, nbr_epochs=100, load_weights='')
+        model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
+        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights='')
         exit(0)
 
     if True:
