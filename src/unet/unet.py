@@ -424,7 +424,7 @@ if __name__ == "__main__":
     sample_input_shape = (480,640,4)
     validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/validation/vn_office'
     train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
-    output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
+    #output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
 
     nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
     nyu_path = 'C:\\datasets\\SOURCE_DATASETS\\rgbd\\nyu_depth_v2_labeled.mat'
@@ -440,24 +440,24 @@ if __name__ == "__main__":
         model.save_weights(h5_weights)
 
     if True:
-        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
-        #output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
-        dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
+        #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_220420'
+        #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
 
         #train_dataset.visualize_data_set()
-        #dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
+        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path)
         #train_dataset.visualize_data_set()
         
 
         #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
         model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
         model.summary()
-        set_finetune_only(model)
+        #set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.001)
         finalize_model(model, optimizer=optimizer)
-        model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
-        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights='')
+        #model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
+        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=1000, load_weights='')
         exit(0)
 
     if True:
