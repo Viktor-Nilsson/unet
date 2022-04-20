@@ -427,7 +427,7 @@ if __name__ == "__main__":
     #output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
 
     nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
-    nyu_path = 'C:\\datasets\\SOURCE_DATASETS\\rgbd\\nyu_depth_v2_labeled.mat'
+    #nyu_path = 'C:\\datasets\\SOURCE_DATASETS\\rgbd\\nyu_depth_v2_labeled.mat'
 
     tf_weigths = 'C:\\ml\\rgbd_unet\\unet_depth_4_nyu_24_classes_20420\\ckpt-max_val_acc_epoch_306'
     h5_weights = tf_weigths + '.h5'
