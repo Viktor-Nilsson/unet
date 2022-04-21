@@ -392,7 +392,7 @@ def get_nyu_dataset(dataset_file_path):
                                 sample_input_shape = sample_input_shape,
                                 train_split = 0.9, 
                                 split='train',
-                                normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MAX_0_255, 
+                                normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MEAN_STD_NEG1_POS1_RGB_NEG1_POS1, 
                                 flatten_outputs=flatten_outputs,
                                 shuffle=True)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
 
@@ -403,7 +403,7 @@ def get_nyu_dataset(dataset_file_path):
                             sample_input_shape = sample_input_shape,
                             train_split = 0.9, 
                             split='validation',
-                            normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MAX_0_255, 
+                            normalize_depth_strategy=nyu_dataset.NormalizationStrategy.NYU_DATASET_DEPTH_MEAN_STD_NEG1_POS1_RGB_NEG1_POS1, 
                             flatten_outputs=flatten_outputs,
                             shuffle=False)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
 
