@@ -441,7 +441,7 @@ if __name__ == "__main__":
 
     if True:
         #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_220420'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_neg1pos1norm_220421'
         #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
 
         #train_dataset.visualize_data_set()
