@@ -9,6 +9,8 @@ from tensorflow.keras import losses
 from tensorflow.keras.initializers import TruncatedNormal
 from tensorflow.keras.optimizers import Adam
 
+import tensorflow_addons as tfa
+
 import metrics as unet_metrics
 
 
@@ -300,7 +302,7 @@ def fit_model(model, output_model_path, training_dataset, validation_dataset, ba
         save_best_only=True)
 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
-        log_dir='logs',
+        log_dir=os.path.join(output_model_path, 'logs'),
         histogram_freq=0,
         write_graph=True,
         write_images=True,
@@ -441,7 +443,7 @@ if __name__ == "__main__":
 
     if True:
         #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_neg1pos1norm_220421'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_neg1pos1norm_focal_loss_220421'
         #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
 
         #train_dataset.visualize_data_set()
@@ -450,12 +452,14 @@ if __name__ == "__main__":
         
 
         #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
-        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
         model.summary()
         #set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.001)
-        finalize_model(model, optimizer=optimizer)
+        loss = tfa.losses.sigmoid_focal_crossentropy
+        finalize_model(model, loss=loss, optimizer=optimizer)
+        
         #model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
         fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=1000, load_weights='')
         exit(0)
