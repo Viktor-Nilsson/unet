@@ -50,7 +50,7 @@ class ConvBlock(layers.Layer):
                                       strides=1,
                                       padding=padding)
 
-        self.batch_norm_1 = layers.BatchNormalization() # vn add
+        #self.batch_norm_1 = layers.BatchNormalization() # vn add
         self.dropout_1 = layers.Dropout(rate=dropout_rate)
         self.activation_1 = layers.Activation(activation)
 
@@ -59,7 +59,7 @@ class ConvBlock(layers.Layer):
                                       kernel_initializer=_get_kernel_initializer(filters, kernel_size),
                                       strides=1,
                                       padding=padding)
-        self.batch_norm_2 = layers.BatchNormalization() # vn add
+        #self.batch_norm_2 = layers.BatchNormalization() # vn add
         self.dropout_2 = layers.Dropout(rate=dropout_rate)
 
         self.activation_2 = layers.Activation(activation)
@@ -67,15 +67,15 @@ class ConvBlock(layers.Layer):
     def call(self, inputs, training=None, **kwargs):
         x = inputs
         x = self.conv2d_1(x)
-        x = self.batch_norm_1(x) # vn add
+        #x = self.batch_norm_1(x) # vn add
 
-        #if training:
-            #x = self.dropout_1(x)
+        if training:
+            x = self.dropout_1(x)
         x = self.activation_1(x)
         x = self.conv2d_2(x)
-        x = self.batch_norm_2(x) # vn add
-        #if training:
-        #    x = self.dropout_2(x)
+        #x = self.batch_norm_2(x) # vn add
+        if training:
+            x = self.dropout_2(x)
 
         x = self.activation_2(x)
         return x
@@ -283,8 +283,8 @@ def fit_model(model, output_model_path, training_dataset, validation_dataset, ba
     if not os.path.exists(checkpoints_dir):
         os.makedirs(checkpoints_dir)
 
-    checkpoint_max_val_acc_filepath = os.path.join(checkpoints_dir, 'ckpt-max_val_acc')
-    checkpoint_min_train_loss_filepath = os.path.join(checkpoints_dir, 'ckpt-min_train_loss')
+    checkpoint_max_val_acc_filepath = os.path.join(checkpoints_dir, 'ckpt-max_val_acc.h5')
+    checkpoint_min_train_loss_filepath = os.path.join(checkpoints_dir, 'ckpt-min_train_loss.h5')
 
     # Setup model checkpoint saving
     model_checkpoint_callback_max_val_acc = tf.keras.callbacks.ModelCheckpoint(
@@ -383,7 +383,7 @@ def get_nyu_dataset(dataset_file_path):
     #     'ceiling']
 
 
-    input_classes = ['desk', 'cup', 'bookshelf', 'clothes', 'shelves', 'blinds', 'books', 'book', 'sofa', 'bed', 'counter',
+    input_classes = ['wall', 'floor', 'desk', 'cup', 'bookshelf', 'clothes', 'shelves', 'blinds', 'books', 'book', 'sofa', 'bed', 'counter',
     'bag', 'lamp', 'box', 'paper', 'ceiling', 'bottle', 'pillow', 'door', 'window', 'table', 'chair', 'cabinet', 'picture']
 
 
@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
     if True:
         #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_neg1pos1norm_focal_loss_220421'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422'
         #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
 
         #train_dataset.visualize_data_set()
@@ -452,16 +452,17 @@ if __name__ == "__main__":
         
 
         #load_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_220419/ckpt-max_val_acc.h5'
-        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
         model.summary()
         #set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.001)
-        loss = tfa.losses.sigmoid_focal_crossentropy
+        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.5)
+
         finalize_model(model, loss=loss, optimizer=optimizer)
         
         #model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
-        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=1000, load_weights='')
+        fit_model(model, output_model_path, dt, dv, batch_size=16, nbr_epochs=1000, load_weights='')
         exit(0)
 
     if True:
