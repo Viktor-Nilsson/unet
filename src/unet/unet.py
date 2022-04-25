@@ -422,7 +422,20 @@ def get_nyu_dataset(dataset_file_path):
 
     return dt, dv, train_dataset, validation_dataset, n_classes
 
+def create_model_info(output_model_path, layer_depth, loss, normalization, classes):
 
+    classes_file_path = os.path.join(output_model_path, 'classes.txt')
+    
+    # Write classes.txt file
+    with open(classes_file_path, 'w+') as classes_f:
+        for c in classes:
+            classes_f.write(f'{c}\n')
+
+    info_file_path = os.path.join(output_model_path, 'info.txt') 
+
+    # write info file
+    with open(info_file_path, 'w+') as info_f:
+        pass
 
 
 
@@ -488,7 +501,7 @@ if __name__ == "__main__":
         set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.0001)
-        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.5)
+        loss = tfa.losses.SigmoidFocalCrossEntropy()
         finalize_model(model, loss=loss, optimizer=optimizer)
         
         model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
