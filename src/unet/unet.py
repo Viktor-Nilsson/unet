@@ -337,14 +337,19 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
 
 
     # Set means to 0 to get positive numbers instead of zero center ( Try fix unet doesnt learn....)
-    depth_mean = 0
-    depth_std = 1.0
-    rgb_mean[0] = 0
-    rgb_mean[1] = 0
-    rgb_mean[2] = 0
-    rgb_std[0] = 1.0
-    rgb_std[1] = 1.0
-    rgb_std[2] = 1.0
+    # depth_mean = 0
+    # depth_std = 1.0
+    # rgb_mean[0] = 0
+    # rgb_mean[1] = 0
+    # rgb_mean[2] = 0
+    # rgb_std[0] = 1.0
+    # rgb_std[1] = 1.0
+    # rgb_std[2] = 1.0
+
+    # Set same mean and std for depth as in nyu for finetuning
+    depth_mean = 2.7963083 # mean ( depth channel ) calculated over the whole nyuv2 dataset
+    depth_std = 1.3860533 
+
 
     train_dataset.set_depth_normalize_mean_std_params(depth_mean, depth_std)
     train_dataset.set_rgb_normalize_mean_std_params(rgb_mean, rgb_std)
@@ -424,24 +429,26 @@ def get_nyu_dataset(dataset_file_path):
 if __name__ == "__main__":
 
     sample_input_shape = (480,640,4)
-    validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/validation/vn_office'
-    train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
+    
     #output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420'
 
     nyu_path = '/home/viktor/datasets/SOURCE_DATASETS/rgbd/nyu_depth_v2_labeled.mat'
     #nyu_path = 'C:\\datasets\\SOURCE_DATASETS\\rgbd\\nyu_depth_v2_labeled.mat'
 
-    tf_weigths = 'C:\\ml\\rgbd_unet\\unet_depth_4_nyu_24_classes_20420\\ckpt-max_val_acc_epoch_306'
+    tf_weigths = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_neg1pos1norm_220421/checkpoints/ckpt-min_train_loss'
+    #tf_weigths = 'C:\\ml\\rgbd_unet\\unet_depth_4_nyu_24_classes_20420\\ckpt-max_val_acc_epoch_306'
     h5_weights = tf_weigths + '.h5'
 
     if False:
         
         # Convert tf weights to hd5 weights        
-        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=24, padding='same')
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=24, padding='same')
+        model.summary()
         model.load_weights(tf_weigths)
         model.save_weights(h5_weights)
+        exit(0)
 
-    if True:
+    if False:
         #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_sibdataset_220420/ckpt_base_nyu_24_classes_306_epochs.h5'
         output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422'
         #dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
@@ -466,6 +473,30 @@ if __name__ == "__main__":
         exit(0)
 
     if True:
+
+        validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/validation/vn_office'
+        train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
+        #validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
+
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_finetune_focal_sib_neg1pos1norm_220425'
+        dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
+        #train_dataset.visualize_data_set()
+        
+        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
+        model.summary()
+        set_finetune_only(model)
+
+        optimizer = Adam(learning_rate=0.0001)
+        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.5)
+        finalize_model(model, loss=loss, optimizer=optimizer)
+        
+        model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
+        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights='')
+        exit(0)
+
+
+    if False:
         import rgbd_sem_seg_dev_app_main
         input_image_folder = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
         weights_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_sib_dataset_220414/unet_sib_dataset_done_weights'
