@@ -329,11 +329,11 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1},
                                         {'class_name': 'contents', 'softmax_index': 2}]
 
-    n_classes = len(include_classes_and_softmax_index)
+    n_classes = len(include_classes_and_softmax_index) + 1 # +1 if use_zero_as_background_class=True 
     
     train_dataset = sib_rgbd_dataset.SiBRGBDDataset(train_base_dir)
     train_dataset.load_dataset_info()    
-    depth_mean, depth_std, rgb_mean, rgb_std = train_dataset.calculate_dataset_mean_std()
+    #depth_mean, depth_std, rgb_mean, rgb_std = train_dataset.calculate_dataset_mean_std()
 
 
     # Set means to 0 to get positive numbers instead of zero center ( Try fix unet doesnt learn....)
@@ -347,20 +347,22 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     # rgb_std[2] = 1.0
 
     # Set same mean and std for depth as in nyu for finetuning
-    depth_mean = 2.7963083 # mean ( depth channel ) calculated over the whole nyuv2 dataset
-    depth_std = 1.3860533 
-
+    depth_mean = nyu_dataset.NyuDepthv2Dataset.dataset_mean_depth # mean ( depth channel ) calculated over the whole nyuv2 dataset
+    depth_std = nyu_dataset.NyuDepthv2Dataset.dataset_std_depth
+    rgb_mean = nyu_dataset.NyuDepthv2Dataset.dataset_mean_colors
+    rgb_std = nyu_dataset.NyuDepthv2Dataset.dataset_std_colors
 
     train_dataset.set_depth_normalize_mean_std_params(depth_mean, depth_std)
     train_dataset.set_rgb_normalize_mean_std_params(rgb_mean, rgb_std)
-    train_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index)
+    train_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index, use_zero_as_background_class=True)
+    train_dataset.set_shuffle(True)
     
 
     val_dataset = sib_rgbd_dataset.SiBRGBDDataset(validation_base_dir)
     val_dataset.load_dataset_info()
     val_dataset.set_depth_normalize_mean_std_params(depth_mean, depth_std)
     val_dataset.set_rgb_normalize_mean_std_params(rgb_mean, rgb_std)
-    val_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index)
+    val_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index, use_zero_as_background_class=True)
     
 
     tf_output_shape = tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], n_classes])
@@ -464,7 +466,7 @@ if __name__ == "__main__":
         model.save_weights(h5_weights)
         exit(0)
 
-    if True:
+    if False:
         h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
         output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_second_run_220426'
         
@@ -484,15 +486,16 @@ if __name__ == "__main__":
         fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=1000, load_weights='')
         exit(0)
 
-    if False:
+    if True:
 
-        validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/validation/vn_office'
-        train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_content_composit_220412'
+        validation_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_validation_220427'
+        train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_training_220427'
         #validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
 
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_finetune_focal_sib_neg1pos1norm_220425'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_finetune_focal_sib_neg1pos1norm_inclbgclass_220427'
         dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
         #train_dataset.visualize_data_set()
+        
         
         h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
         model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
@@ -504,7 +507,7 @@ if __name__ == "__main__":
         finalize_model(model, loss=loss, optimizer=optimizer)
         
         model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
-        fit_model(model, output_model_path, dt, dv, batch_size=8, nbr_epochs=100, load_weights='')
+        fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=5000, load_weights='') # High batch size seems important for  segmentation
         exit(0)
 
 
