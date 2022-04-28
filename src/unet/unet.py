@@ -386,7 +386,7 @@ def set_finetune_only(model):
         print(f'Name: {layer.name}, {layer}')    
 
 
-def get_nyu_dataset(dataset_file_path, use_image_augmentation=False):
+def get_nyu_dataset(dataset_file_path, use_zero_as_background_class=False, set_use_pixel_augmentation=False, use_spatial_augmentation=False):
 
     # composite_include_classes = [['wall', 'blinds', 'wall decoration', 'wall divider', 'whiteboard'], # TODO reduce this class since it becomes to heavy 
     #     ['floor', 'floor mat', 'rug'],
@@ -399,6 +399,9 @@ def get_nyu_dataset(dataset_file_path, use_image_augmentation=False):
 
     sample_input_shape = (480,640,4)
     n_classes = len(input_classes)
+    if use_zero_as_background_class:
+        n_classes += 1
+    
     flatten_outputs = False
     train_dataset = nyu_dataset.NyuDepthv2Dataset(dataset_file_path, 
                                 sample_input_shape = sample_input_shape,
@@ -408,10 +411,14 @@ def get_nyu_dataset(dataset_file_path, use_image_augmentation=False):
                                 flatten_outputs=flatten_outputs,
                                 shuffle=True)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
 
-    train_dataset.set_include_classes(input_classes)
-    if use_image_augmentation:
-        print("Enabling image augmentation for training data")
-        train_dataset.set_use_image_augmentation()
+    train_dataset.set_include_classes(input_classes, use_zero_as_background_class)
+    if set_use_pixel_augmentation:
+        print("Enabling pixel augmentation for training data")
+        train_dataset.set_use_pixel_augmentation()
+
+    if use_spatial_augmentation:
+        print("Enabling spatial augmentation for training data")
+        train_dataset.set_use_spatial_augmentation()
 
 
     validation_dataset = nyu_dataset.NyuDepthv2Dataset(dataset_file_path, 
@@ -422,7 +429,7 @@ def get_nyu_dataset(dataset_file_path, use_image_augmentation=False):
                             flatten_outputs=flatten_outputs,
                             shuffle=False)  # Sample input shape is RGBD (cols, rows, 4channel=rgbd)
 
-    validation_dataset.set_include_classes(input_classes)
+    validation_dataset.set_include_classes(input_classes, use_zero_as_background_class)
 
     tf_output_shape = tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], n_classes])
     dt = tf.data.Dataset.from_generator(train_dataset.__next__,  (tf.float32, tf.float32), (tf.TensorShape([None, sample_input_shape[0], sample_input_shape[1], sample_input_shape[2]]), tf_output_shape))
@@ -469,11 +476,14 @@ if __name__ == "__main__":
         model.save_weights(h5_weights)
         exit(0)
 
-    if False:
-        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_second_run_220426'
+    if True:
+
+        ### NYU training ####
+
+        #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_27_classesneg1pos1norm_focal_loss_bgclass_220428'
         
-        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path, use_image_augmentation=True)
+        dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path, use_zero_as_background_class=True, set_use_pixel_augmentation=False, use_spatial_augmentation=True)
         #train_dataset.visualize_data_set()
         
         model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
@@ -481,7 +491,7 @@ if __name__ == "__main__":
         #set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.001)
-        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25)
+        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.5)
 
         finalize_model(model, loss=loss, optimizer=optimizer)
         
@@ -489,7 +499,7 @@ if __name__ == "__main__":
         fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=1000, load_weights='')
         exit(0)
 
-    if True:
+    if False:
 
         validation_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_validation_220427'
         train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_training_220427'
