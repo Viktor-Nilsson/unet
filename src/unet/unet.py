@@ -495,7 +495,7 @@ if __name__ == "__main__":
 
         finalize_model(model, loss=loss, optimizer=optimizer)
         
-        model.load_weights(h5_weights)#, by_name=True, skip_mismatch=True)
+        model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
         fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=1000, load_weights='')
         exit(0)
 
