@@ -480,7 +480,7 @@ if __name__ == "__main__":
 
         ### NYU training ####
 
-        #h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
+        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
         output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_27_classesneg1pos1norm_focal_loss_spat_aug_bgclass_220428'
         
         dt, dv, train_dataset, val_dataset, n_classes = get_nyu_dataset(nyu_path, use_zero_as_background_class=True, set_use_pixel_augmentation=False, use_spatial_augmentation=True)
@@ -495,7 +495,7 @@ if __name__ == "__main__":
 
         finalize_model(model, loss=loss, optimizer=optimizer)
         
-        #model.load_weights(h5_weights)#, by_name=True, skip_mismatch=True)
+        model.load_weights(h5_weights)#, by_name=True, skip_mismatch=True)
         fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=1000, load_weights='')
         exit(0)
 
