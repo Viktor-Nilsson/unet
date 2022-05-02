@@ -326,11 +326,11 @@ def fit_model(model, output_model_path, training_dataset, validation_dataset, ba
 
 def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     
-    # include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1},
-    #                                     {'class_name': 'contents', 'softmax_index': 2}]
+    include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1},
+                                         {'class_name': 'contents', 'softmax_index': 2}]
 
 
-    include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1}]
+    #include_classes_and_softmax_index = [{'class_name': 'container', 'softmax_index': 1}]
 
     n_classes = len(include_classes_and_softmax_index) + 1 # +1 if use_zero_as_background_class=True 
     
@@ -508,7 +508,7 @@ if __name__ == "__main__":
         train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_training_220427'
         #validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
 
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_finetune_focal_sib_neg1pos1norm_inclbgclass_container_spat_aug220502'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_finetune_focal_sib_neg1pos1norm_inclbgclass_container_content_spat_aug220502'
         dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
         #train_dataset.visualize_data_set()
         
