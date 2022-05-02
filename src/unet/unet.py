@@ -519,7 +519,7 @@ if __name__ == "__main__":
         set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.0001)
-        loss = tfa.losses.SigmoidFocalCrossEntropy(0.75)
+        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.75)
         finalize_model(model, loss=loss, optimizer=optimizer)
         
         model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
