@@ -360,6 +360,8 @@ def get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir):
     train_dataset.set_include_classes_and_softmax_index(include_classes_and_softmax_index, use_zero_as_background_class=True)
     train_dataset.set_shuffle(True)
     
+    # Augment by flipping images left right
+    train_dataset.set_use_spatial_augmentation()
 
     val_dataset = sib_rgbd_dataset.SiBRGBDDataset(validation_base_dir)
     val_dataset.load_dataset_info()
@@ -391,7 +393,6 @@ def get_nyu_dataset(dataset_file_path, use_zero_as_background_class=False, set_u
     # composite_include_classes = [['wall', 'blinds', 'wall decoration', 'wall divider', 'whiteboard'], # TODO reduce this class since it becomes to heavy 
     #     ['floor', 'floor mat', 'rug'],
     #     'ceiling']
-
 
     input_classes = ['wall', 'floor', 'desk', 'cup', 'bookshelf', 'clothes', 'shelves', 'blinds', 'books', 'book', 'sofa', 'bed', 'counter',
     'bag', 'lamp', 'box', 'paper', 'ceiling', 'bottle', 'pillow', 'door', 'window', 'table', 'chair', 'cabinet', 'picture']
@@ -476,7 +477,7 @@ if __name__ == "__main__":
         model.save_weights(h5_weights)
         exit(0)
 
-    if True:
+    if False:
 
         ### NYU training ####
 
@@ -491,7 +492,7 @@ if __name__ == "__main__":
         #set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.001)
-        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.5)
+        loss = tfa.losses.SigmoidFocalCrossEntropy(alpha=0.75) # 0.75 yielded train acc > 0.8 when using depth == 4 and spat aug.
 
         finalize_model(model, loss=loss, optimizer=optimizer)
         
@@ -499,28 +500,31 @@ if __name__ == "__main__":
         fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=1000, load_weights='')
         exit(0)
 
-    if False:
+    if True:
+        
+        ### SIB RGBD training/finetuning ###
 
         validation_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_validation_220427'
         train_base_dir = '/home/viktor/datasets/GENERATED_DATA_SETS/rgbd/vn_large_container_composit_training_220427'
         #validation_base_dir = '/home/viktor/datasets/RAW_DATA/stereo_large_container/vn_office'
 
-        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_finetune_focal_sib_neg1pos1norm_inclbgclass_container_220428'
+        output_model_path = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_finetune_focal_sib_neg1pos1norm_inclbgclass_container_spat_aug220502'
         dt, dv, train_dataset, val_dataset, n_classes = get_sib_datasets(sample_input_shape, train_base_dir, validation_base_dir)
         #train_dataset.visualize_data_set()
         
         
-        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_5_nyu_26_classesneg1pos1norm_focal_loss_220422/checkpoints/ckpt-min_train_loss.h5'
-        model = build_model(nx=640, ny=480, channels=4, layer_depth=5, num_classes=n_classes, padding='same')
+        h5_weights = '/home/viktor/ml/rgbd_unet/unet_depth_4_nyu_27_classesneg1pos1norm_focal_loss_spat_aug_bgclass_220430/checkpoints/ckpt-min_train_loss.h5'
+        model = build_model(nx=640, ny=480, channels=4, layer_depth=4, num_classes=n_classes, padding='same')
         model.summary()
         set_finetune_only(model)
 
         optimizer = Adam(learning_rate=0.0001)
-        loss = tfa.losses.SigmoidFocalCrossEntropy()
+        loss = tfa.losses.SigmoidFocalCrossEntropy(0.75)
         finalize_model(model, loss=loss, optimizer=optimizer)
         
         model.load_weights(h5_weights, by_name=True, skip_mismatch=True)
-        fit_model(model, output_model_path, dt, dv, batch_size=24, nbr_epochs=5000, load_weights='') # High batch size seems important for  segmentation
+        fit_model(model, output_model_path, dt, dv, batch_size=16, nbr_epochs=5000, load_weights='') # High batch size seems important for segmentation but batch size 24 on ghost has sometime failed to converge or even change loss at all. 
+
         exit(0)
 
 
